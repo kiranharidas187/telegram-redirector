@@ -1,0 +1,19 @@
+[Unit]
+Description=Telegram Channel TTS Reader
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+# Edit these two paths for your machine:
+WorkingDirectory=/home/YOUR_USERNAME/telegram-tts-reader
+ExecStart=/usr/bin/python3 /home/YOUR_USERNAME/telegram-tts-reader/telegram_tts_reader.py
+# Credentials come from a .env file next to telegram_tts_reader.py (see .env.example),
+# not from this unit file — no EnvironmentFile= needed.
+
+# Needed so the service can reach your logged-in desktop's audio session
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

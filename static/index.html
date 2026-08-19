@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TG Reader — Console</title>
+  <link rel="icon" href="data:," />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ============================== LOGIN ============================== -->
+    <section id="login-screen" class="login-screen" hidden>
+      <div class="login-card">
+        <p class="wordmark">TG READER</p>
+        <h1 class="login-title">Sign in to Telegram</h1>
+        <p class="login-sub">
+          Uses your own Telegram account, so it can listen to any channel
+          you're subscribed to. Nothing is sent anywhere but Telegram.
+        </p>
+
+        <form id="phone-form" class="login-step">
+          <label class="field-label" for="phone-input">Phone number</label>
+          <input
+            id="phone-input"
+            class="field-input"
+            type="tel"
+            placeholder="+1 555 123 4567"
+            autocomplete="tel"
+            required
+          />
+          <button class="btn btn-primary" type="submit">Send code</button>
+        </form>
+
+        <form id="code-form" class="login-step" hidden>
+          <label class="field-label" for="code-input">Enter the code Telegram sent you</label>
+          <input
+            id="code-input"
+            class="field-input"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            required
+          />
+          <button class="btn btn-primary" type="submit">Verify code</button>
+          <button class="btn btn-link" type="button" id="change-number-btn">Use a different number</button>
+        </form>
+
+        <form id="password-form" class="login-step" hidden>
+          <label class="field-label" for="password-input">Enter your two-step verification password</label>
+          <input
+            id="password-input"
+            class="field-input"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+          <button class="btn btn-primary" type="submit">Verify password</button>
+        </form>
+
+        <p id="login-error" class="field-error" hidden></p>
+      </div>
+    </section>
+
+    <!-- ============================= CONSOLE ============================= -->
+    <section id="console-screen" class="console-screen" hidden>
+      <header class="status-bar">
+        <div class="status-left">
+          <span id="on-air-dot" class="on-air-dot"></span>
+          <span class="wordmark">TG READER</span>
+        </div>
+        <div class="status-right">
+          <span id="connected-as" class="connected-as"></span>
+          <button id="logout-btn" class="btn btn-icon" title="Log out" type="button">⏻</button>
+        </div>
+      </header>
+
+      <div class="console-grid">
+        <aside class="rail">
+          <section class="panel">
+            <h2 class="panel-title">Channels</h2>
+            <ul id="channel-list" class="channel-list"></ul>
+            <p id="channel-empty" class="empty-note" hidden>
+              No channels yet — tune one in below.
+            </p>
+            <button id="tune-in-btn" class="btn btn-ghost btn-block" type="button">
+              + Tune in a channel
+            </button>
+          </section>
+
+          <section class="panel">
+            <h2 class="panel-title">Settings</h2>
+            <div class="slider-row">
+              <label class="field-label" for="rate-input">Speech rate</label>
+              <div class="slider-with-value">
+                <input id="rate-input" type="range" min="80" max="300" step="5" />
+                <span id="rate-value" class="slider-value"></span>
+              </div>
+            </div>
+            <div class="slider-row">
+              <label class="field-label" for="volume-input">Volume</label>
+              <div class="slider-with-value">
+                <input id="volume-input" type="range" min="0" max="100" step="5" />
+                <span id="volume-value" class="slider-value"></span>
+              </div>
+            </div>
+          </section>
+
+          <div id="restart-banner" class="restart-banner" hidden>
+            <span>Listening is using your last-applied settings.</span>
+            <button id="restart-btn" class="btn btn-primary btn-small" type="button">Restart to apply</button>
+          </div>
+
+          <button id="listen-toggle-btn" class="btn btn-primary btn-block btn-large" type="button">
+            Start listening
+          </button>
+          <p id="listener-error" class="field-error" hidden></p>
+        </aside>
+
+        <main class="log-pane">
+          <h2 class="panel-title">Transmission log</h2>
+          <ul id="log-list" class="log-list"></ul>
+          <p id="log-empty" class="empty-note">
+            Nothing read yet — start listening and it'll show up here.
+          </p>
+        </main>
+      </div>
+    </section>
+
+    <!-- ========================= TUNE-IN MODAL =========================== -->
+    <div id="tune-in-modal" class="modal-scrim" hidden>
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="panel-title">Tune in a channel</h2>
+          <button id="tune-in-close-btn" class="btn btn-icon" type="button">✕</button>
+        </div>
+        <input
+          id="dialog-search"
+          class="field-input"
+          type="search"
+          placeholder="Search your channels and groups…"
+        />
+        <ul id="dialog-list" class="dialog-list"></ul>
+        <p id="dialog-loading" class="empty-note">Fetching your channels…</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

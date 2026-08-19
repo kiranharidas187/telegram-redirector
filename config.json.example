@@ -1,0 +1,14 @@
+{
+  "channels": [
+    {
+      "id": -1004296731341,
+      "title": "Example Channel",
+      "username": null,
+      "enabled": true,
+      "muted": false,
+      "voice": "auto"
+    }
+  ],
+  "speech_rate": 175,
+  "volume": 1.0
+}
