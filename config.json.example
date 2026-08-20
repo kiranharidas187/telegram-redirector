@@ -6,7 +6,16 @@
       "username": null,
       "enabled": true,
       "muted": false,
-      "voice": "auto"
+      "voice": "auto",
+      "forward": false
+    }
+  ],
+  "forward_targets": [
+    {
+      "id": -1009876543210,
+      "title": "Example Backup Group",
+      "username": null,
+      "enabled": true
     }
   ],
   "speech_rate": 175,

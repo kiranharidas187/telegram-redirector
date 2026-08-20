@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from telethon import TelegramClient, events
-from telethon.errors import SessionPasswordNeededError
+from telethon.errors import FloodWaitError, RPCError, SessionPasswordNeededError
 from telethon.tl.types import Channel, Chat
 from telethon.utils import get_peer_id
 
@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
     app.state.message_queue = asyncio.Queue()
     app.state.channel_voices = {}
     app.state.channel_titles = {}
+    app.state.forward_entity_cache = {}
     app.state.listening = False
     app.state.activity_subscribers = []
     app.state.tts_task = asyncio.create_task(
@@ -65,9 +66,67 @@ app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+@app.middleware("http")
+async def no_cache_static(request: Request, call_next):
+    """Prevents the browser from caching static assets across restarts —
+    without this, editing app.js/app.css can silently keep serving a stale
+    cached copy until a hard refresh, since StaticFiles doesn't set
+    Cache-Control on its own."""
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 def _broadcast_activity(event: dict) -> None:
     for queue in list(app.state.activity_subscribers):
         queue.put_nowait(event)
+
+
+async def _forward_message(event) -> dict:
+    """Reposts event.message to every enabled forward target, as a brand-new
+    message (not a native Telegram forward — no "Forwarded from" tag), if
+    forwarding is turned on for this source channel. Reuses
+    reader_core.resolve_channels for target resolution, same as source
+    channels, and caches resolved entities in app.state.forward_entity_cache
+    so most messages only need a local cache lookup, not a network call.
+
+    Errors are handled per target so one bad destination (flood wait, no
+    longer a member, etc.) never blocks the others or crashes the handler."""
+    channel_cfg = next((c for c in app.state.config["channels"] if c["id"] == event.chat_id), None)
+    if not channel_cfg or not channel_cfg.get("forward"):
+        return {"forward_ok": 0, "forward_failed": 0}
+
+    targets = [t for t in app.state.config.get("forward_targets", []) if t.get("enabled")]
+    if not targets:
+        return {"forward_ok": 0, "forward_failed": 0}
+
+    ok = 0
+    failed = []
+    for target in targets:
+        entity = app.state.forward_entity_cache.get(target["id"])
+        if entity is None:
+            try:
+                (entity,) = await reader_core.resolve_channels(client, [target["id"]])
+            except reader_core.ChannelResolutionError:
+                failed.append(target["title"])
+                continue
+            app.state.forward_entity_cache[target["id"]] = entity
+        try:
+            await client.send_message(entity, message=event.message)
+            ok += 1
+        except FloodWaitError as e:
+            print(f"[forward] flood wait ({e.seconds}s) sending to {target['title']!r} — skipped")
+            failed.append(target["title"])
+        except RPCError as e:
+            print(f"[forward] failed sending to {target['title']!r}: {e}")
+            failed.append(target["title"])
+            app.state.forward_entity_cache.pop(target["id"], None)
+        except Exception as e:
+            print(f"[forward] unexpected error sending to {target['title']!r}: {e}")
+            failed.append(target["title"])
+
+    return {"forward_ok": ok, "forward_failed": len(failed)}
 
 
 async def _message_handler(event) -> None:
@@ -84,6 +143,7 @@ async def _message_handler(event) -> None:
     voice = app.state.channel_voices.get(event.chat_id)
 
     await app.state.message_queue.put((spoken_text, voice))
+    forward_result = await _forward_message(event)
     _broadcast_activity(
         {
             "ts": datetime.now().strftime("%H:%M:%S"),
@@ -91,6 +151,7 @@ async def _message_handler(event) -> None:
             "channel_title": title,
             "text": text,
             "voice": voice,
+            **forward_result,
         }
     )
 
@@ -227,6 +288,7 @@ async def dialogs() -> list[dict]:
 
 class ConfigIn(BaseModel):
     channels: list[dict]
+    forward_targets: list[dict] = []
     speech_rate: int
     volume: float
 

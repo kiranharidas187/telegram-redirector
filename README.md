@@ -59,8 +59,13 @@ you have one set) — same as adding a new device. From there:
   or pick one and hit **Preview** to hear it), and a **mute** toggle to
   silence it temporarily without removing it.
 - **Speech rate** and **volume** sliders tune playback.
+- **Forwarding targets**: add one or more other channels/groups (via the
+  same "Tune in" picker), then flip the **Forward** toggle on any listened
+  channel to repost its new messages there too — as a fresh message, not a
+  native Telegram forward. Each target can be enabled/disabled independently.
 - **Start listening** goes live; a **transmission log** on the right shows
-  what's been read aloud as it happens.
+  what's been read aloud as it happens, including how many forward targets
+  each message reached.
 - Changing channels/voices while already listening shows a **Restart to
   apply** prompt — Telegram's event subscription is fixed per-connection,
   so picking up a channel-list change means restarting the listener (your
@@ -71,9 +76,10 @@ Chromebook/Crostini, wherever you run it), not your network. There's no
 separate portal login: the person who can reach `127.0.0.1` on this machine
 *is* the person allowed in, same as any other localhost dev tool.
 
-Settings (channels, voices, mute, speech rate, volume) are stored in
-`config.json`, a plain JSON file next to the scripts — no database. It's
-gitignored, same as `.env`; `config.json.example` shows its shape.
+Settings (channels, voices, mute, forward flags/targets, speech rate,
+volume) are stored in `config.json`, a plain JSON file next to the scripts —
+no database. It's gitignored, same as `.env`; `config.json.example` shows
+its shape.
 
 ## Headless / CLI script
 

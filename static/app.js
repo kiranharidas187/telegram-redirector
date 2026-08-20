@@ -1,7 +1,7 @@
 const SIGNAL_COLORS = ["#4FB8A8", "#5FA8D8", "#7BC0A0", "#4F9DC4", "#8FC9C0", "#6FB093"];
 
 const state = {
-  config: { channels: [], speech_rate: 175, volume: 1.0 },
+  config: { channels: [], forward_targets: [], speech_rate: 175, volume: 1.0 },
   voices: [],
   listening: false,
   sse: null,
@@ -29,6 +29,10 @@ const channelList = document.getElementById("channel-list");
 const channelEmpty = document.getElementById("channel-empty");
 const tuneInBtn = document.getElementById("tune-in-btn");
 
+const forwardTargetList = document.getElementById("forward-target-list");
+const forwardTargetEmpty = document.getElementById("forward-target-empty");
+const addForwardTargetBtn = document.getElementById("add-forward-target-btn");
+
 const rateInput = document.getElementById("rate-input");
 const rateValue = document.getElementById("rate-value");
 const volumeInput = document.getElementById("volume-input");
@@ -43,6 +47,7 @@ const logList = document.getElementById("log-list");
 const logEmpty = document.getElementById("log-empty");
 
 const tuneInModal = document.getElementById("tune-in-modal");
+const tuneInModalTitle = document.getElementById("tune-in-modal-title");
 const tuneInCloseBtn = document.getElementById("tune-in-close-btn");
 const dialogSearch = document.getElementById("dialog-search");
 const dialogList = document.getElementById("dialog-list");
@@ -199,6 +204,7 @@ async function loadConsoleData() {
   volumeValue.textContent = `${volumePct}%`;
 
   renderChannels();
+  renderForwardTargets();
   updateListenToggle();
   connectSSE();
 }
@@ -208,13 +214,31 @@ function signalColorFor(index) {
 }
 
 let saveTimer = null;
+let savePromise = null;
+let saveQueued = false;
 
-function onConfigEdited() {
-  if (state.listening) {
+function onConfigEdited(needsRestart = true) {
+  if (needsRestart && state.listening) {
     restartBanner.hidden = false;
   }
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveConfig, 500);
+  saveTimer = setTimeout(triggerSave, 500);
+}
+
+function triggerSave() {
+  if (savePromise) {
+    // A save is already in flight; queue another once it settles instead of
+    // firing an overlapping request that could race it and clobber this edit.
+    saveQueued = true;
+    return;
+  }
+  savePromise = saveConfig().finally(() => {
+    savePromise = null;
+    if (saveQueued) {
+      saveQueued = false;
+      triggerSave();
+    }
+  });
 }
 
 async function saveConfig() {
@@ -223,6 +247,10 @@ async function saveConfig() {
       method: "PUT",
       body: JSON.stringify(state.config),
     });
+    // state.config was just replaced wholesale; re-render so DOM event
+    // handlers close over the new objects instead of orphaned ones.
+    renderChannels();
+    renderForwardTargets();
   } catch (err) {
     console.error("Failed to save config:", err.message);
   }
@@ -309,6 +337,17 @@ function renderChannels() {
     });
     controls.appendChild(muteBtn);
 
+    const forwardBtn = document.createElement("button");
+    forwardBtn.type = "button";
+    forwardBtn.className = "btn btn-ghost btn-small" + (ch.forward ? " forward-active" : "");
+    forwardBtn.textContent = ch.forward ? "Forwarding" : "Forward: off";
+    forwardBtn.addEventListener("click", () => {
+      ch.forward = !ch.forward;
+      onConfigEdited(false);
+      renderChannels();
+    });
+    controls.appendChild(forwardBtn);
+
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.className = "btn btn-ghost btn-small remove-channel-btn";
@@ -322,6 +361,64 @@ function renderChannels() {
 
     li.appendChild(controls);
     channelList.appendChild(li);
+  });
+}
+
+function renderForwardTargets() {
+  forwardTargetList.innerHTML = "";
+  const targets = state.config.forward_targets || [];
+  forwardTargetEmpty.hidden = targets.length > 0;
+
+  targets.forEach((t) => {
+    const li = document.createElement("li");
+    li.className = "channel-strip";
+
+    const top = document.createElement("div");
+    top.className = "channel-strip-top";
+
+    const dot = document.createElement("span");
+    dot.className = "signal-dot" + (t.enabled ? " enabled" : "");
+    top.appendChild(dot);
+
+    const title = document.createElement("span");
+    title.className = "channel-title";
+    title.textContent = t.title;
+    top.appendChild(title);
+
+    const switchLabel = document.createElement("label");
+    switchLabel.className = "switch";
+    switchLabel.title = t.enabled ? "Enabled" : "Disabled";
+    const switchInput = document.createElement("input");
+    switchInput.type = "checkbox";
+    switchInput.checked = t.enabled;
+    switchInput.addEventListener("change", () => {
+      t.enabled = switchInput.checked;
+      onConfigEdited(false);
+      renderForwardTargets();
+    });
+    const switchTrack = document.createElement("span");
+    switchTrack.className = "switch-track";
+    switchLabel.append(switchInput, switchTrack);
+    top.appendChild(switchLabel);
+
+    li.appendChild(top);
+
+    const controls = document.createElement("div");
+    controls.className = "channel-strip-controls";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn btn-ghost btn-small remove-channel-btn";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
+      state.config.forward_targets = state.config.forward_targets.filter((x) => x.id !== t.id);
+      onConfigEdited(false);
+      renderForwardTargets();
+    });
+    controls.appendChild(removeBtn);
+
+    li.appendChild(controls);
+    forwardTargetList.appendChild(li);
   });
 }
 
@@ -397,8 +494,11 @@ restartBtn.addEventListener("click", async () => {
 // ------------------------------------------------------------- tune-in
 
 let allDialogs = [];
+let pickerMode = "channel";
 
-async function openTuneInModal() {
+async function openTuneInModal(mode = "channel") {
+  pickerMode = mode;
+  tuneInModalTitle.textContent = mode === "target" ? "Add a forward target" : "Tune in a channel";
   tuneInModal.hidden = false;
   dialogSearch.value = "";
   dialogList.innerHTML = "";
@@ -413,7 +513,7 @@ async function openTuneInModal() {
   } catch (err) {
     dialogLoading.textContent = `Couldn't load channels: ${err.message} (click to retry)`;
     dialogLoading.style.cursor = "pointer";
-    dialogLoading.onclick = () => openTuneInModal();
+    dialogLoading.onclick = () => openTuneInModal(pickerMode);
   }
 }
 
@@ -421,7 +521,8 @@ function closeTuneInModal() {
   tuneInModal.hidden = true;
 }
 
-tuneInBtn.addEventListener("click", openTuneInModal);
+tuneInBtn.addEventListener("click", () => openTuneInModal("channel"));
+addForwardTargetBtn.addEventListener("click", () => openTuneInModal("target"));
 tuneInCloseBtn.addEventListener("click", closeTuneInModal);
 tuneInModal.addEventListener("click", (e) => {
   if (e.target === tuneInModal) closeTuneInModal();
@@ -433,7 +534,9 @@ dialogSearch.addEventListener("input", () => {
 
 function renderDialogList(query) {
   dialogList.innerHTML = "";
-  const configuredIds = new Set(state.config.channels.map((c) => c.id));
+  const configuredIds = new Set(
+    (pickerMode === "target" ? state.config.forward_targets : state.config.channels).map((c) => c.id)
+  );
   const filtered = allDialogs.filter((d) => (d.title || "").toLowerCase().includes(query));
 
   filtered.forEach((d) => {
@@ -457,16 +560,28 @@ function renderDialogList(query) {
     btn.textContent = alreadyAdded ? "Added" : "Add";
     btn.disabled = alreadyAdded;
     btn.addEventListener("click", () => {
-      state.config.channels.push({
-        id: d.id,
-        title: d.title,
-        username: d.username,
-        enabled: true,
-        muted: false,
-        voice: "auto",
-      });
-      onConfigEdited();
-      renderChannels();
+      if (pickerMode === "target") {
+        state.config.forward_targets.push({
+          id: d.id,
+          title: d.title,
+          username: d.username,
+          enabled: true,
+        });
+        onConfigEdited(false);
+        renderForwardTargets();
+      } else {
+        state.config.channels.push({
+          id: d.id,
+          title: d.title,
+          username: d.username,
+          enabled: true,
+          muted: false,
+          voice: "auto",
+          forward: false,
+        });
+        onConfigEdited();
+        renderChannels();
+      }
       renderDialogList(query);
     });
     li.appendChild(btn);
@@ -522,6 +637,13 @@ function addLogEntry(item) {
   text.className = "log-text";
   text.textContent = item.text;
   li.appendChild(text);
+
+  if (item.forward_ok || item.forward_failed) {
+    const fwd = document.createElement("p");
+    fwd.className = "log-forward" + (item.forward_failed ? " has-failures" : "");
+    fwd.textContent = `→ forwarded ${item.forward_ok}/${item.forward_ok + item.forward_failed} target(s)`;
+    li.appendChild(fwd);
+  }
 
   logList.prepend(li);
   while (logList.children.length > 50) {

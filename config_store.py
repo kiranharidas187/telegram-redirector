@@ -13,6 +13,7 @@ CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
 
 DEFAULTS: dict[str, Any] = {
     "channels": [],
+    "forward_targets": [],
     "speech_rate": 175,
     "volume": 1.0,
 }

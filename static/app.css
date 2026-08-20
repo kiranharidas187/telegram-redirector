@@ -408,6 +408,7 @@ select.voice-select {
 
 .channel-strip-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.55rem;
@@ -415,12 +416,17 @@ select.voice-select {
 }
 
 .voice-select {
-  flex: 1;
+  flex: 1 1 100%;
   min-width: 0;
 }
 
 .remove-channel-btn {
   color: var(--static-rust);
+}
+
+.forward-active {
+  color: var(--signal-teal);
+  border-color: var(--signal-teal);
 }
 
 /* ------------------------------------------------------------- sliders */
@@ -510,6 +516,17 @@ select.voice-select {
   grid-column: 1 / -1;
   padding-left: 20px;
   color: var(--paper);
+}
+
+.log-forward {
+  grid-column: 1 / -1;
+  padding-left: 20px;
+  font-size: 0.78rem;
+  color: var(--paper-dim);
+}
+
+.log-forward.has-failures {
+  color: var(--static-rust);
 }
 
 /* ------------------------------------------------------------- modal */

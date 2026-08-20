@@ -94,6 +94,17 @@
           </section>
 
           <section class="panel">
+            <h2 class="panel-title">Forwarding targets</h2>
+            <ul id="forward-target-list" class="channel-list"></ul>
+            <p id="forward-target-empty" class="empty-note" hidden>
+              No forward targets yet — add one below.
+            </p>
+            <button id="add-forward-target-btn" class="btn btn-ghost btn-block" type="button">
+              + Add a forward target
+            </button>
+          </section>
+
+          <section class="panel">
             <h2 class="panel-title">Settings</h2>
             <div class="slider-row">
               <label class="field-label" for="rate-input">Speech rate</label>
@@ -136,7 +147,7 @@
     <div id="tune-in-modal" class="modal-scrim" hidden>
       <div class="modal">
         <div class="modal-header">
-          <h2 class="panel-title">Tune in a channel</h2>
+          <h2 id="tune-in-modal-title" class="panel-title">Tune in a channel</h2>
           <button id="tune-in-close-btn" class="btn btn-icon" type="button">✕</button>
         </div>
         <input
